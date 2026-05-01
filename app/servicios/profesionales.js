@@ -122,3 +122,16 @@ export async function completarMiPerfil(datos) {
     throw error;
   }
 }
+
+export async function listarMisPacientes(q = "") {
+  try {
+    const params = q ? `?q=${encodeURIComponent(q)}` : ""
+    const response = await fetch(`${PROF_URL}/yo/pacientes${params}`, {
+      headers: authHeaders(),
+    })
+    return await manejarRespuesta(response)
+  } catch (error) {
+    console.error("❌ Error en listarMisPacientes:", error)
+    throw error
+  }
+}
