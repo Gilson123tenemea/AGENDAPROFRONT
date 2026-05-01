@@ -78,3 +78,16 @@ export async function cancelarCitaPublica(token, datos) {
 
   return { ok: true, data };
 }
+
+
+export async function tokenPublicoProfesionalDeCita(tokenReserva) {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/api/v1/publico/citas/${tokenReserva}/profesional-token`
+    );
+    return await manejarRespuesta(response);
+  } catch (error) {
+    console.error("❌ Error en tokenPublicoProfesionalDeCita:", error);
+    throw error;
+  }
+}

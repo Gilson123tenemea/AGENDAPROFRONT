@@ -2,18 +2,20 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
-  Calendar, Clock, User, Phone, MapPin, MessageSquare,
-  XCircle, Star, Loader2, AlertTriangle, CheckCircle,
+  Calendar, Clock, Star, DollarSign, ChevronLeft, ChevronRight,
+  MapPin, MessageCircle, User, Loader2, Languages, Briefcase,
+  GraduationCap, Phone, MessageSquare, XCircle, AlertTriangle,
 } from "lucide-react"
-import { estadoCita, cancelarCitaPublica } from "@/app/servicios/publico"
+import { estadoCita, cancelarCitaPublica, tokenPublicoProfesionalDeCita } from "@/app/servicios/publico"
 
 // ── Tipos ─────────────────────────────────────────────────────────────
 type EstadoCita =
@@ -23,7 +25,7 @@ type EstadoCita =
 type CitaPublica = {
   token_reserva: string
   estado: EstadoCita
-  inicio: string        // ISO datetime
+  inicio: string
   fin: string
   motivo: string
   motivo_cancelacion: string | null
@@ -44,11 +46,11 @@ const ESTADO_CONFIG: Record<EstadoCita, {
   iconBg: string
   iconColor: string
 }> = {
-  pendiente:   { label: "Pendiente de pago",  badgeBg: "bg-amber-100",  badgeText: "text-amber-800",  iconBg: "bg-amber-100",  iconColor: "text-amber-600"  },
-  confirmada:  { label: "Confirmada",          badgeBg: "bg-green-100",  badgeText: "text-green-800",  iconBg: "bg-green-100",  iconColor: "text-green-600"  },
-  cancelada:   { label: "Cancelada",           badgeBg: "bg-red-100",    badgeText: "text-red-800",    iconBg: "bg-red-100",    iconColor: "text-red-500"    },
-  completada:  { label: "Completada",          badgeBg: "bg-blue-100",   badgeText: "text-blue-800",   iconBg: "bg-blue-100",   iconColor: "text-blue-600"   },
-  no_asistio:  { label: "No asistió",          badgeBg: "bg-gray-100",   badgeText: "text-gray-700",   iconBg: "bg-gray-100",   iconColor: "text-gray-500"   },
+  pendiente:  { label: "Pendiente de pago", badgeBg: "bg-amber-100",  badgeText: "text-amber-800",  iconBg: "bg-amber-100",  iconColor: "text-amber-600"  },
+  confirmada: { label: "Confirmada",         badgeBg: "bg-green-100",  badgeText: "text-green-800",  iconBg: "bg-green-100",  iconColor: "text-green-600"  },
+  cancelada:  { label: "Cancelada",          badgeBg: "bg-red-100",    badgeText: "text-red-800",    iconBg: "bg-red-100",    iconColor: "text-red-500"    },
+  completada: { label: "Completada",         badgeBg: "bg-blue-100",   badgeText: "text-blue-800",   iconBg: "bg-blue-100",   iconColor: "text-blue-600"   },
+  no_asistio: { label: "No asistió",         badgeBg: "bg-gray-100",   badgeText: "text-gray-700",   iconBg: "bg-gray-100",   iconColor: "text-gray-500"   },
 }
 
 const MESES = [
@@ -68,18 +70,22 @@ function formatHora(iso: string) {
 
 // ── Componente ────────────────────────────────────────────────────────
 export default function AppointmentStatusPage() {
+  const router = useRouter()
   const params = useParams()
   const token = params.token as string
 
-  const [cita, setCita]           = useState<CitaPublica | null>(null)
-  const [cargando, setCargando]   = useState(true)
+  const [cita, setCita]             = useState<CitaPublica | null>(null)
+  const [cargando, setCargando]     = useState(true)
   const [errorCarga, setErrorCarga] = useState("")
 
-  // Flujo de cancelación inline
-  const [mostraCancelar, setMostraCancelar] = useState(false)
+  const [mostraCancelar, setMostraCancelar]       = useState(false)
   const [motivoCancelacion, setMotivoCancelacion] = useState("")
-  const [cancelando, setCancelando]   = useState(false)
-  const [errorCancelar, setErrorCancelar] = useState("")
+  const [cancelando, setCancelando]               = useState(false)
+  const [errorCancelar, setErrorCancelar]         = useState("")
+
+  // ── Nuevo: resolución del token público del profesional ──────────
+  const [tokenProfesional, setTokenProfesional]   = useState<string | null>(null)
+  const [cargandoTokenProf, setCargandoTokenProf] = useState(false)
 
   // ── Carga inicial ────────────────────────────────────────────────
   useEffect(() => {
@@ -117,6 +123,27 @@ export default function AppointmentStatusPage() {
     }
   }
 
+  // ── Navegar al perfil del profesional resolviendo el token ───────
+  const irAlPerfilProfesional = async () => {
+    // Si ya lo tenemos cacheado, navegar directo sin nueva petición
+    if (tokenProfesional) {
+      router.push(`/p/${tokenProfesional}`)
+      return
+    }
+    setCargandoTokenProf(true)
+    try {
+      const res = await tokenPublicoProfesionalDeCita(token)
+      const tp = res?.token_publico ?? res?.data?.token_publico
+      if (!tp) throw new Error("Token no recibido")
+      setTokenProfesional(tp)
+      router.push(`/p/${tp}`)
+    } catch {
+      // Fallo silencioso — el botón queda habilitado para reintentar
+    } finally {
+      setCargandoTokenProf(false)
+    }
+  }
+
   // ── Estados de carga / error ─────────────────────────────────────
   if (cargando) {
     return (
@@ -136,7 +163,7 @@ export default function AppointmentStatusPage() {
     )
   }
 
-  const cfg      = ESTADO_CONFIG[cita.estado] ?? ESTADO_CONFIG.pendiente
+  const cfg       = ESTADO_CONFIG[cita.estado] ?? ESTADO_CONFIG.pendiente
   const puedeCanc = cita.estado === "pendiente" || cita.estado === "confirmada"
   const puedeCal  = cita.estado === "completada"
 
@@ -330,8 +357,17 @@ export default function AppointmentStatusPage() {
                     Cancelar cita
                   </Button>
                 )}
-                <Button variant="ghost" asChild className="w-full">
-                  <Link href={`/p/${token}`}>Ver perfil del profesional</Link>
+
+                {/* ← Reemplaza el <Link> estático — resuelve el token antes de navegar */}
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  disabled={cargandoTokenProf}
+                  onClick={irAlPerfilProfesional}
+                >
+                  {cargandoTokenProf
+                    ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cargando perfil...</>
+                    : "Ver perfil del profesional"}
                 </Button>
               </div>
             )}
